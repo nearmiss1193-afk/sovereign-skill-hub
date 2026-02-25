@@ -9,8 +9,7 @@ const PORT = process.env.PORT || 10000;
 // In-memory storage for skills
 let skills = [];
 
-// Health checks (must be first)
-app.get('/', (req, res) => res.status(200).send('OK'));
+// Health check (only /health now — Render is happy with this)
 app.get('/health', (req, res) => res.status(200).send('OK'));
 
 // Middleware
@@ -48,6 +47,7 @@ app.get('/api/skills', (req, res) => res.json(skills));
 // Serve the beautiful frontend
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Catch-all for SPA
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
