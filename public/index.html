@@ -6,14 +6,18 @@
   <title>Sovereign Skill Hub — Build & Sell AI Agents</title>
   <style>
     body { font-family: 'Segoe UI', sans-serif; background: #0a0a0a; color: #fff; margin:0; padding:0; }
-    .hero { height: 100vh; background: linear-gradient(135deg, #667eea, #764ba2); display:flex; align-items:center; justify-content:center; text-align:center; }
-    .container { max-width: 900px; padding: 40px; }
-    h1 { font-size: 3.5rem; margin-bottom: 20px; }
-    .subtitle { font-size: 1.4rem; opacity: 0.9; }
-    .card { background: #1a1a1a; border-radius: 16px; padding: 30px; margin: 20px 0; }
-    input, textarea, button { width: 100%; padding: 14px; margin: 10px 0; border-radius: 8px; border: none; }
-    button { background: #00ff88; color: #000; font-weight: bold; font-size: 1.1rem; cursor: pointer; }
-    .status { color: #00ff88; font-weight: bold; }
+    .hero { min-height: 100vh; background: linear-gradient(135deg, #667eea, #764ba2); display:flex; align-items:center; justify-content:center; padding: 40px 20px; }
+    .container { max-width: 1000px; width: 100%; }
+    h1 { font-size: 3.2rem; margin-bottom: 10px; }
+    .subtitle { font-size: 1.4rem; opacity: 0.9; margin-bottom: 40px; }
+    .card { background: #1a1a1a; border-radius: 16px; padding: 30px; margin-bottom: 30px; }
+    input, textarea, button { width: 100%; padding: 14px; margin: 10px 0; border-radius: 8px; border: none; font-size: 1rem; }
+    button { background: #00ff88; color: #000; font-weight: bold; cursor: pointer; }
+    button:hover { background: #00cc6a; }
+    .skills-list { display: grid; gap: 15px; margin-top: 30px; }
+    .skill-card { background: #222; padding: 20px; border-radius: 12px; }
+    .status { color: #00ff88; font-weight: bold; margin-top: 10px; }
+    .counter { font-size: 1.1rem; opacity: 0.9; }
   </style>
 </head>
 <body>
@@ -21,31 +25,67 @@
     <div class="container">
       <h1>Sovereign Skill Hub</h1>
       <p class="subtitle">Build powerful AI agents & skills in minutes.<br>Earn while others use them.</p>
-      
+
       <div class="card">
-        <h2>Try it live (no login)</h2>
+        <h2>Try it live — Create a skill</h2>
         <input type="text" id="name" placeholder="Skill name (e.g. Crypto Trader)">
-        <textarea id="desc" rows="3" placeholder="Description..."></textarea>
+        <textarea id="desc" rows="3" placeholder="What does it do?..."></textarea>
         <button onclick="createSkill()">Create Skill & Test</button>
         <div id="result" class="status"></div>
       </div>
 
-      <p style="margin-top:40px; opacity:0.7;">Abacus billing webhook is LIVE → ready for production payments</p>
+      <div class="card">
+        <div class="counter">Skills Created: <span id="count">0</span></div>
+        <div id="skillsList" class="skills-list">
+          <!-- Skills appear here automatically -->
+        </div>
+      </div>
+
+      <p style="margin-top:40px; opacity:0.7; text-align:center;">Abacus billing webhook is LIVE → ready for real payments</p>
     </div>
   </div>
 
   <script>
     async function createSkill() {
-      const name = document.getElementById('name').value;
-      const desc = document.getElementById('desc').value;
+      const name = document.getElementById('name').value.trim();
+      const desc = document.getElementById('desc').value.trim();
+      if (!name) return alert('Please enter a skill name');
+
       const res = await fetch('/api/create-skill', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({name, description: desc})
       });
       const data = await res.json();
-      document.getElementById('result').innerHTML = `✅ Skill created! ID: ${data.skill.id}`;
+
+      document.getElementById('result').innerHTML = `✅ Skill "${data.skill.name}" created!`;
+      document.getElementById('name').value = '';
+      document.getElementById('desc').value = '';
+
+      loadSkills(); // refresh the list instantly
     }
+
+    async function loadSkills() {
+      const res = await fetch('/api/skills');
+      const skills = await res.json();
+      const container = document.getElementById('skillsList');
+      const count = document.getElementById('count');
+
+      count.textContent = skills.length;
+
+      container.innerHTML = skills.length === 0 
+        ? '<p style="opacity:0.6; text-align:center;">No skills yet — create one above!</p>'
+        : skills.map(s => `
+          <div class="skill-card">
+            <strong>${s.name}</strong><br>
+            <small>${s.description || 'No description'}</small><br>
+            <small style="opacity:0.6">Created just now</small>
+          </div>
+        `).join('');
+    }
+
+    // Load skills when page opens
+    window.onload = loadSkills;
   </script>
 </body>
 </html>
