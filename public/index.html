@@ -3,89 +3,110 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sovereign Skill Hub — Build & Sell AI Agents</title>
+  <title>Sovereign Skill Hub</title>
   <style>
     body { font-family: 'Segoe UI', sans-serif; background: #0a0a0a; color: #fff; margin:0; padding:0; }
-    .hero { min-height: 100vh; background: linear-gradient(135deg, #667eea, #764ba2); display:flex; align-items:center; justify-content:center; padding: 40px 20px; }
-    .container { max-width: 1000px; width: 100%; }
-    h1 { font-size: 3.2rem; margin-bottom: 10px; }
-    .subtitle { font-size: 1.4rem; opacity: 0.9; margin-bottom: 40px; }
+    .hero { min-height: 100vh; background: linear-gradient(135deg, #667eea, #764ba2); padding: 40px 20px; }
+    .container { max-width: 1100px; margin: 0 auto; }
+    h1 { font-size: 3rem; margin-bottom: 10px; }
+    .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+    .tab { padding: 12px 24px; background: #1a1a1a; border-radius: 8px; cursor: pointer; }
+    .tab.active { background: #00ff88; color: #000; font-weight: bold; }
     .card { background: #1a1a1a; border-radius: 16px; padding: 30px; margin-bottom: 30px; }
-    input, textarea, button { width: 100%; padding: 14px; margin: 10px 0; border-radius: 8px; border: none; font-size: 1rem; }
+    input, textarea, button { width: 100%; padding: 14px; margin: 10px 0; border-radius: 8px; border: none; }
     button { background: #00ff88; color: #000; font-weight: bold; cursor: pointer; }
-    button:hover { background: #00cc6a; }
-    .skills-list { display: grid; gap: 15px; margin-top: 30px; }
-    .skill-card { background: #222; padding: 20px; border-radius: 12px; }
-    .status { color: #00ff88; font-weight: bold; margin-top: 10px; }
-    .counter { font-size: 1.1rem; opacity: 0.9; }
+    .event, .skill-card { background: #222; padding: 15px; border-radius: 8px; margin-bottom: 10px; }
+    .stats { display: flex; gap: 20px; flex-wrap: wrap; }
+    .stat { background: #222; padding: 20px; border-radius: 12px; flex: 1; min-width: 200px; }
   </style>
 </head>
 <body>
   <div class="hero">
     <div class="container">
       <h1>Sovereign Skill Hub</h1>
-      <p class="subtitle">Build powerful AI agents & skills in minutes.<br>Earn while others use them.</p>
+      <p>Build powerful AI agents & skills in minutes. Earn while others use them.</p>
 
-      <div class="card">
+      <div class="tabs">
+        <div class="tab active" onclick="switchTab(0)">Create Skill</div>
+        <div class="tab" onclick="switchTab(1)">Skills Marketplace</div>
+        <div class="tab" onclick="switchTab(2)">Billing & Revenue</div>
+      </div>
+
+      <!-- Tab 1: Create Skill -->
+      <div id="tab0" class="tab-content card">
         <h2>Try it live — Create a skill</h2>
         <input type="text" id="name" placeholder="Skill name (e.g. Crypto Trader)">
-        <textarea id="desc" rows="3" placeholder="What does it do?..."></textarea>
+        <textarea id="desc" rows="2" placeholder="What does it do?..."></textarea>
         <button onclick="createSkill()">Create Skill & Test</button>
         <div id="result" class="status"></div>
       </div>
 
-      <div class="card">
-        <div class="counter">Skills Created: <span id="count">0</span></div>
-        <div id="skillsList" class="skills-list">
-          <!-- Skills appear here automatically -->
-        </div>
+      <!-- Tab 2: Skills Marketplace -->
+      <div id="tab1" class="tab-content card" style="display:none">
+        <h2>Skills Marketplace</h2>
+        <div id="skillsList"></div>
       </div>
 
-      <p style="margin-top:40px; opacity:0.7; text-align:center;">Abacus billing webhook is LIVE → ready for real payments</p>
+      <!-- Tab 3: Billing & Revenue -->
+      <div id="tab2" class="tab-content card" style="display:none">
+        <h2>Billing & Revenue (Live from Abacus)</h2>
+        <div class="stats">
+          <div class="stat">Total Skills: <span id="totalSkills">0</span></div>
+          <div class="stat">Billing Events: <span id="totalEvents">0</span></div>
+        </div>
+        <div id="billingLog" class="log"></div>
+      </div>
     </div>
   </div>
 
   <script>
-    async function createSkill() {
+    function switchTab(n) {
+      document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', i===n));
+      document.querySelectorAll('.tab-content').forEach((c,i) => c.style.display = i===n ? 'block' : 'none');
+    }
+
+    async function createSkill() { /* same as before */ 
       const name = document.getElementById('name').value.trim();
       const desc = document.getElementById('desc').value.trim();
-      if (!name) return alert('Please enter a skill name');
-
-      const res = await fetch('/api/create-skill', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({name, description: desc})
-      });
+      if (!name) return alert('Enter a skill name');
+      const res = await fetch('/api/create-skill', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name, description: desc}) });
       const data = await res.json();
-
-      document.getElementById('result').innerHTML = `✅ Skill "${data.skill.name}" created!`;
-      document.getElementById('name').value = '';
-      document.getElementById('desc').value = '';
-
-      loadSkills(); // refresh the list instantly
+      document.getElementById('result').innerHTML = `✅ ${data.skill.name} created!`;
+      document.getElementById('name').value = ''; document.getElementById('desc').value = '';
+      loadAll();
     }
 
-    async function loadSkills() {
-      const res = await fetch('/api/skills');
-      const skills = await res.json();
-      const container = document.getElementById('skillsList');
-      const count = document.getElementById('count');
+    async function loadAll() {
+      const [skillsRes, eventsRes, statsRes] = await Promise.all([
+        fetch('/api/skills'), fetch('/api/billing-events'), fetch('/api/stats')
+      ]);
+      const skills = await skillsRes.json();
+      const events = await eventsRes.json();
+      const stats = await statsRes.json();
 
-      count.textContent = skills.length;
+      document.getElementById('totalSkills').textContent = stats.totalSkills;
+      document.getElementById('totalEvents').textContent = stats.totalBillingEvents;
 
-      container.innerHTML = skills.length === 0 
-        ? '<p style="opacity:0.6; text-align:center;">No skills yet — create one above!</p>'
-        : skills.map(s => `
-          <div class="skill-card">
-            <strong>${s.name}</strong><br>
-            <small>${s.description || 'No description'}</small><br>
-            <small style="opacity:0.6">Created just now</small>
-          </div>
-        `).join('');
+      // Skills list
+      document.getElementById('skillsList').innerHTML = skills.map(s => `
+        <div class="skill-card"><strong>${s.name}</strong><br><small>${s.description}</small></div>
+      `).join('') || '<p style="opacity:0.6">No skills yet</p>';
+
+      // Billing log
+      document.getElementById('billingLog').innerHTML = events.map(e => `
+        <div class="event">
+          <strong>${new Date(e.receivedAt).toLocaleString()}</strong><br>
+          ${e.client_id || e.clientId || 'Unknown client'} • 
+          ${e.result ? 'Forecast ROI: ' + (e.result.roi_percentage || '?') + '%' : 'Billing event'}
+        </div>
+      `).join('') || '<p style="opacity:0.6">Waiting for first billing event from Abacus...</p>';
     }
 
-    // Load skills when page opens
-    window.onload = loadSkills;
+    window.onload = () => {
+      switchTab(0);
+      loadAll();
+      setInterval(loadAll, 5000);
+    };
   </script>
 </body>
 </html>
