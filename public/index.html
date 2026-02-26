@@ -9,15 +9,15 @@
     .hero { min-height: 100vh; background: linear-gradient(135deg, #667eea, #764ba2); padding: 40px 20px; }
     .container { max-width: 1100px; margin: 0 auto; }
     h1 { font-size: 3rem; margin-bottom: 10px; }
-    .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+    .tabs { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
     .tab { padding: 12px 24px; background: #1a1a1a; border-radius: 8px; cursor: pointer; }
     .tab.active { background: #00ff88; color: #000; font-weight: bold; }
     .card { background: #1a1a1a; border-radius: 16px; padding: 30px; margin-bottom: 30px; }
     input, textarea, button { width: 100%; padding: 14px; margin: 10px 0; border-radius: 8px; border: none; }
     button { background: #00ff88; color: #000; font-weight: bold; cursor: pointer; }
     .event, .skill-card { background: #222; padding: 15px; border-radius: 8px; margin-bottom: 10px; }
-    .stats { display: flex; gap: 20px; flex-wrap: wrap; }
     .stat { background: #222; padding: 20px; border-radius: 12px; flex: 1; min-width: 200px; }
+    .share-btn { background: #00cc6a; color: #fff; padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; margin-left: 10px; }
   </style>
 </head>
 <body>
@@ -32,25 +32,25 @@
         <div class="tab" onclick="switchTab(2)">Billing & Revenue</div>
       </div>
 
-      <!-- Tab 1: Create Skill -->
+      <!-- Create Skill Tab -->
       <div id="tab0" class="tab-content card">
         <h2>Try it live — Create a skill</h2>
         <input type="text" id="name" placeholder="Skill name (e.g. Crypto Trader)">
         <textarea id="desc" rows="2" placeholder="What does it do?..."></textarea>
         <button onclick="createSkill()">Create Skill & Test</button>
-        <div id="result" class="status"></div>
+        <div id="result" class="status" style="color:#00ff88; margin-top:10px;"></div>
       </div>
 
-      <!-- Tab 2: Skills Marketplace -->
+      <!-- Skills Marketplace Tab -->
       <div id="tab1" class="tab-content card" style="display:none">
         <h2>Skills Marketplace</h2>
         <div id="skillsList"></div>
       </div>
 
-      <!-- Tab 3: Billing & Revenue -->
+      <!-- Billing Tab -->
       <div id="tab2" class="tab-content card" style="display:none">
         <h2>Billing & Revenue (Live from Abacus)</h2>
-        <div class="stats">
+        <div class="stats" style="display:flex; gap:20px; flex-wrap:wrap;">
           <div class="stat">Total Skills: <span id="totalSkills">0</span></div>
           <div class="stat">Billing Events: <span id="totalEvents">0</span></div>
         </div>
@@ -65,21 +65,32 @@
       document.querySelectorAll('.tab-content').forEach((c,i) => c.style.display = i===n ? 'block' : 'none');
     }
 
-    async function createSkill() { /* same as before */ 
+    async function createSkill() {
       const name = document.getElementById('name').value.trim();
       const desc = document.getElementById('desc').value.trim();
-      if (!name) return alert('Enter a skill name');
-      const res = await fetch('/api/create-skill', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name, description: desc}) });
+      if (!name) return alert('Please enter a skill name');
+
+      const res = await fetch('/api/create-skill', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({name, description: desc})
+      });
       const data = await res.json();
-      document.getElementById('result').innerHTML = `✅ ${data.skill.name} created!`;
-      document.getElementById('name').value = ''; document.getElementById('desc').value = '';
-      loadAll();
+
+      document.getElementById('result').innerHTML = `✅ Skill "${data.skill.name}" created successfully!`;
+      document.getElementById('name').value = '';
+      document.getElementById('desc').value = '';
+
+      loadAll(); // refresh everything instantly
     }
 
     async function loadAll() {
       const [skillsRes, eventsRes, statsRes] = await Promise.all([
-        fetch('/api/skills'), fetch('/api/billing-events'), fetch('/api/stats')
+        fetch('/api/skills'),
+        fetch('/api/billing-events'),
+        fetch('/api/stats')
       ]);
+
       const skills = await skillsRes.json();
       const events = await eventsRes.json();
       const stats = await statsRes.json();
@@ -87,19 +98,33 @@
       document.getElementById('totalSkills').textContent = stats.totalSkills;
       document.getElementById('totalEvents').textContent = stats.totalBillingEvents;
 
-      // Skills list
-      document.getElementById('skillsList').innerHTML = skills.map(s => `
-        <div class="skill-card"><strong>${s.name}</strong><br><small>${s.description}</small></div>
-      `).join('') || '<p style="opacity:0.6">No skills yet</p>';
+      // Marketplace
+      const market = document.getElementById('skillsList');
+      market.innerHTML = skills.length === 0 
+        ? '<p style="opacity:0.6">No skills yet — create one above!</p>'
+        : skills.map(s => `
+          <div class="skill-card">
+            <strong>${s.name}</strong><br>
+            <small>${s.description || 'No description'}</small><br>
+            <button class="share-btn" onclick="shareSkill(${s.id})">Share</button>
+          </div>
+        `).join('');
 
       // Billing log
-      document.getElementById('billingLog').innerHTML = events.map(e => `
-        <div class="event">
-          <strong>${new Date(e.receivedAt).toLocaleString()}</strong><br>
-          ${e.client_id || e.clientId || 'Unknown client'} • 
-          ${e.result ? 'Forecast ROI: ' + (e.result.roi_percentage || '?') + '%' : 'Billing event'}
-        </div>
-      `).join('') || '<p style="opacity:0.6">Waiting for first billing event from Abacus...</p>';
+      document.getElementById('billingLog').innerHTML = events.length === 0 
+        ? '<p style="opacity:0.6">Waiting for billing events from Abacus...</p>'
+        : events.map(e => `
+          <div class="event">
+            <strong>${new Date(e.receivedAt).toLocaleString()}</strong><br>
+            ${e.client_id || e.clientId || 'Unknown'} — ${e.result ? 'ROI ' + (e.result.roi_percentage || '?') + '%' : 'Billing event'}
+          </div>
+        `).join('');
+    }
+
+    function shareSkill(id) {
+      const url = `https://sovereign-skill-hub.onrender.com/skill/${id}`;
+      navigator.clipboard.writeText(url);
+      alert('✅ Public link copied!\n\nSend this to anyone in Lakeland or Orlando:\n' + url);
     }
 
     window.onload = () => {
